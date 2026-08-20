@@ -58,10 +58,26 @@ jobs:
           fi
           npm config set //npm.pkg.github.com/:_authToken "$GH_PAT"
 
-      - name: Install and build
+      # `npm ci` reports a rejected token as a bare 401 on a tarball URL, deep in
+      # its output. Resolving the package first surfaces the registry's own
+      # message — which does say whether the token is unauthenticated or merely
+      # lacks access — and adds what to do about it. Uses npm rather than curl on
+      # purpose, so it exercises exactly the auth path `npm ci` will take.
+      - name: Check registry access
         run: |
-          npm ci
-          npm run build
+          if ! npm view @jetbrains/int-ui-kit version; then
+            echo "::error::GH_PAT cannot read @jetbrains/int-ui-kit from GitHub Packages. 'User cannot be authenticated' above means the token is expired or revoked — issue a new classic PAT with read:packages and update the secret. Fine-grained tokens do not work against this registry. Note that a local npm install can still succeed on a dead token if the tarball is already in the npm cache, so working locally proves nothing here."
+            exit 1
+          fi
+
+      # Kept as two steps: installing and building fail for entirely different
+      # reasons (registry access vs. the code itself), and one combined step
+      # hides which of the two it was.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
 
       - uses: actions/upload-pages-artifact@v3
         with:
