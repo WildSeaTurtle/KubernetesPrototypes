@@ -37,21 +37,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # registry-url + scope make setup-node write an npm user config carrying
-      # the token, which composes with the repo's own .npmrc scope mapping.
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: npm
-          registry-url: 'https://npm.pkg.github.com'
-          scope: '@jetbrains'
+
+      # @jetbrains/int-ui-kit comes from GitHub Packages (see .npmrc) and the
+      # runner has no credentials for it. The token is written into npm's own
+      # config here rather than through setup-node's registry-url template: an
+      # unset secret expands to an empty string silently, and npm then fails with
+      # "authentication token not provided", which says nothing about the cause.
+      # Checking it explicitly turns that into a readable error at the right step.
+      - name: Authenticate to GitHub Packages
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          if [ -z "$GH_PAT" ]; then
+            echo "::error::Secret GH_PAT is missing or empty. Add a token with read:packages under Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+          npm config set //npm.pkg.github.com/:_authToken "$GH_PAT"
 
       - name: Install and build
         run: |
           npm ci
           npm run build
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GH_PAT }}
 
       - uses: actions/upload-pages-artifact@v3
         with:
