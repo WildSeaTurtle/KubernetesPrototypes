@@ -1,0 +1,183 @@
+/* Prototype shell — the left switcher panel, ported from VCSprototypes
+   (src/App.css there) so both repos navigate the same way.
+   Colours are literal hex, as in the original: this is prototype chrome around
+   the IDE mock, not part of it, and it is deliberately pinned to the dark
+   values rather than following the kit's theme tokens. */
+
+.prototype-shell {
+  --screen-switcher-panel-width: 260px;
+
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  position: relative;
+  box-sizing: border-box;
+  background: #1e1f22;
+  overflow: hidden;
+}
+
+.prototype-content {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: 100%;
+}
+
+.prototype-shell.panel-visible .prototype-content {
+  left: var(--screen-switcher-panel-width);
+}
+
+.prototype-shell:not(.panel-visible) .screen-switcher {
+  display: none;
+}
+
+.screen-switcher {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  width: var(--screen-switcher-panel-width);
+  height: 100vh;
+  height: 100dvh;
+  border-right: 1px solid #3d3f45;
+  background: #2b2d30;
+  box-shadow: 8px 0 28px rgb(0 0 0 / 20%);
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+
+/* Prototype picker (top section) */
+
+.prototype-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 16px 12px 12px;
+  border-bottom: 1px solid #3d3f45;
+}
+
+.prototype-picker-item {
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #ced0d6;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+}
+
+.prototype-picker-item:hover {
+  background: #393b40;
+  color: #ffffff;
+}
+
+.prototype-picker-item-active,
+.prototype-picker-item-active:hover {
+  background: #4b6eaf;
+  color: #ffffff;
+}
+
+/* Screen groups (bottom section) */
+
+.screen-groups {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 16px 20px 20px;
+}
+
+.screen-switcher-group {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.screen-switcher-group + .screen-switcher-group {
+  margin-top: 14px;
+}
+
+.screen-switcher-group-title {
+  min-width: 0;
+  padding: 0 0 4px;
+  color: #ced0d6;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.screen-switcher-group-title-collapsible {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: #ced0d6;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.screen-switcher-group-title-collapsible:hover {
+  color: #ffffff;
+}
+
+.screen-switcher-group-arrow {
+  font-size: 9px;
+  flex: 0 0 auto;
+  transition: transform 150ms ease;
+}
+
+.screen-switcher-group-arrow-expanded {
+  transform: rotate(90deg);
+}
+
+.screen-switcher-tab {
+  width: calc(100% - 16px);
+  min-width: 0;
+  min-height: 32px;
+  margin-left: 16px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #ced0d6;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.35;
+  text-align: left;
+  white-space: normal;
+  cursor: pointer;
+}
+
+.screen-switcher-tab:hover {
+  background: #393b40;
+  color: #ffffff;
+}
+
+.screen-switcher-tab-active,
+.screen-switcher-tab-active:hover {
+  background: #4b6eaf;
+  color: #ffffff;
+}
+
+@media (max-width: 520px) {
+  .prototype-shell {
+    --screen-switcher-panel-width: 220px;
+  }
+}

@@ -145,6 +145,28 @@
     border-bottom: 1px solid var(--table-border);
 }
 
+/* Checkboxes in the Namespaces popup. They sit in the row's icon slot as state
+   readouts, not as controls of their own — the PopupCell row already owns the
+   toggle. So they are made inert, otherwise a click would hit both the native
+   input and the row and cancel itself out. `.checkbox-container` also carries
+   its own `padding: 8px 0`, which would add 16px to every row. Two classes deep
+   to beat the kit's single-class rule regardless of stylesheet order. */
+.popup-cell-icon .k8s-namespace-checkbox {
+    padding: 0;
+    pointer-events: none;
+}
+
+/* Indent every namespace row one level in from the "All Namespaces" master
+   row, so a row's checkbox starts exactly where the word "All" starts. The
+   general sibling combinator picks the `.popup-cell-line` rows that follow
+   another one — that is, everything after the master row — while the separator
+   and footer keep their own classes and are left alone. Popup renders all
+   children as siblings inside `.popup-options`, which is what makes this work.
+   PopupCell does not forward `className`, so there is no per-row hook. */
+.k8s-namespace-popup-indented .popup-cell-line ~ .popup-cell-line {
+    padding-left: var(--k8s-popup-indent);
+}
+
 /* Favourite star in the Namespaces popup, rendered into the kit's right-hand
    `.popup-cell-shortcut` slot. A filled star (an actual favourite) stays
    visible so the list reads at a glance; the outline star is only revealed
@@ -159,6 +181,25 @@
    (9999), so starting a drag cannot close the popup. */
 .k8s-namespace-popup {
     position: relative;
+    /* The gap `.popup-cell-left-content` leaves between a row's icon box and its
+       text — 16px box plus a 6px gap. */
+    --k8s-popup-icon-slot: calc(16px + 6px);
+    /* One indent level: the row's own 8px padding plus that icon slot, so an
+       indented row's checkbox starts where the outer row's text starts. */
+    --k8s-popup-indent: calc(8px + var(--k8s-popup-icon-slot));
+}
+
+/* Validation message, shown when the popup refuses to close on an empty
+   selection. Absolute and anchored to the wrapper's top edge, so raising it
+   neither resizes the popup nor moves a single row; `bottom: 100%` puts it
+   entirely above. Left offset lines its text up with the namespace labels —
+   one indent plus the icon slot, less the tooltip's own 8px padding. */
+.k8s-namespace-popup-validation {
+    position: absolute;
+    bottom: 100%;
+    left: calc(var(--k8s-popup-indent) + var(--k8s-popup-icon-slot) - 8px);
+    margin-bottom: 6px;
+    z-index: 2;
 }
 
 .k8s-namespace-popup-drag-handle {

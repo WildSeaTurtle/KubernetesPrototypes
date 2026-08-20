@@ -14,6 +14,8 @@ import {
     ToolbarIconButton,
     ToolbarSeparator,
     ToolbarButton,
+    Checkbox,
+    ValidationTooltip,
     PositionedPopup,
     Popup,
     PopupCell,
@@ -44,6 +46,77 @@ function namespaceRank(namespace, selected, favorites) {
     if (isFavorite) return 2
     return 3
 }
+
+// How the working set is named wherever it is summarised — the table toolbar's
+// Namespaces button and the cluster tree node. Shared so the threshold lives in
+// one place and the two readouts cannot disagree.
+//
+// Spelling out the set stops paying off past a few names (the toolbar button has
+// `nowrap` text, so a long list widens the toolbar past the pane), hence the
+// collapse to a count. "All Namespaces" and an empty deliberate selection are
+// both real, reachable states (see NamespacePopup's radio-vs-checkbox note) and
+// have to be named rather than rendered blank — though the tree node opts out of
+// the empty case and drops its suffix instead.
+const NAMESPACE_LIST_LIMIT = 3
+
+function namespaceSummary(allSelected, selected) {
+    if (allSelected) return 'All Namespaces'
+    if (selected.length === 0) return 'None'
+    if (selected.length > NAMESPACE_LIST_LIMIT) return `${selected.length} namespaces`
+    return selected.join(', ')
+}
+
+// The three Namespaces-popup designs under comparison, described as data rather
+// than as three near-identical components: everything around the popup (tree,
+// table, toolbar, context menus, favourites, drag handle) is the same, and
+// stating the differences in one table is what makes them comparable at all.
+//
+//   control            'checkmark' — a tick only when selected, like a menu
+//                      'checkbox'  — a real box on every row
+//   separatorUnderAll  rule between the master row and the namespaces
+//   indentRows         namespace rows shifted one level in, so their control
+//                      starts where the master row's text starts
+//   ticksFollowAll     whether rows show a tick while "All Namespaces" is on.
+//                      Also drives selection: when they mirror it, unticking one
+//                      row has to materialise the full set and drop just that
+//                      one; when they don't, the master and the rows are
+//                      mutually exclusive and a row click starts a fresh set.
+//   allIsRadio         a second click on an already-selected master is a no-op,
+//                      as a selected radio cannot be unchecked by clicking it
+//   blockEmptyDismiss  refuse to close on an empty set, showing the validation
+//                      message instead of silently applying "no namespaces"
+export const POPUP_VARIANTS = [
+    {
+        id: 'v1',
+        label: 'Variant 1 — checkmarks',
+        control: 'checkmark',
+        separatorUnderAll: true,
+        indentRows: false,
+        ticksFollowAll: false,
+        allIsRadio: true,
+        blockEmptyDismiss: false,
+    },
+    {
+        id: 'v2',
+        label: 'Variant 2 — checkboxes, indented',
+        control: 'checkbox',
+        separatorUnderAll: false,
+        indentRows: true,
+        ticksFollowAll: true,
+        allIsRadio: false,
+        blockEmptyDismiss: true,
+    },
+    {
+        id: 'v3',
+        label: 'Variant 3 — checkboxes, aligned',
+        control: 'checkbox',
+        separatorUnderAll: true,
+        indentRows: false,
+        ticksFollowAll: false,
+        allIsRadio: true,
+        blockEmptyDismiss: false,
+    },
+]
 
 function orderNamespaces(selected, favorites) {
     return [...ALL_NAMESPACE_IDS].sort(
@@ -92,17 +165,25 @@ function buildTreeData(allNamespacesSelected, selectedNamespaces) {
         ],
     }))
 
-    // Only spell out the working set for a genuine, deliberate subset — "All
-    // Namespaces" (the default) or an empty selection both read cleaner as
-    // the plain name than a full or empty bracket list.
-    const clusterLabel = !allNamespacesSelected && selectedNamespaces.length > 0
-        ? `staging-cluster [${selectedNamespaces.join(', ')}]`
-        : 'staging-cluster'
+    // The working set annotation on the cluster node. Built from the same
+    // `namespaceSummary` helper as the toolbar button, so the threshold lives
+    // in exactly one place and the two readouts can't disagree. The only
+    // difference is the empty case: the node drops the suffix altogether rather
+    // than spelling out "None".
+    //
+    // It goes through `secondaryText` rather than being baked into the label so
+    // it renders in `.tree-node-secondary` — the same dimmed --text-secondary as
+    // the `[namespace]` suffix on the pod rows. Matching by mechanism, not by a
+    // second CSS rule that could drift from the pods'.
+    const clusterNamespaces = !allNamespacesSelected && selectedNamespaces.length === 0
+        ? undefined
+        : `[${namespaceSummary(allNamespacesSelected, selectedNamespaces)}]`
 
     return [
         {
             id: 'cluster',
-            label: clusterLabel,
+            label: 'staging-cluster',
+            secondaryText: clusterNamespaces,
             icon: STUB_ICON,
             isExpanded: true,
             children: [
@@ -239,8 +320,11 @@ function ResourceCategoryContextMenu({ rect, onDismiss, onOpenNamespace }) {
 // "any individual namespace is selected" (picking one clears the other),
 // while the individual namespaces are ordinary independent checkboxes
 // among themselves. So exactly one of two states holds at a time:
-//   - All Namespaces checked, every individual row unchecked, tree/table
-//     show every pod.
+//   - All Namespaces checked, and every row below shows a tick too, because
+//     everything really is in scope; tree/table show every pod. Note this is
+//     display only — `selected` stays empty, which is what keeps the toolbar
+//     button and the cluster node reading "All Namespaces" instead of spelling
+//     out all nine names.
 //   - All Namespaces unchecked, zero or more individual rows checked
 //     (real checkbox toggling), tree/table show only those namespaces.
 // Each namespace row carries a favourite star in the kit's right-hand
@@ -248,8 +332,24 @@ function ResourceCategoryContextMenu({ rect, onDismiss, onOpenNamespace }) {
 // outline (`nodes/starEmpty`) only while the row is hovered. Clicking the star
 // stops propagation so it toggles the favourite without also toggling the
 // row's selection.
-function NamespacePopup({ rect, allSelected, selected, favorites, onToggle, onToggleAll, onToggleFavorite, onDismiss }) {
+function NamespacePopup({ variant, rect, allSelected, selected, favorites, error, onToggle, onToggleAll, onToggleFavorite, onDismiss }) {
     const { delta, onDragHandleMouseDown } = useDraggable()
+
+    // The selection control for one row. A checkbox is always rendered, so its
+    // slot is never empty; a checkmark is absent when unselected, and the caller
+    // falls back to `iconGap` to keep the column aligned.
+    const renderControl = (checked, indeterminate = false) => {
+        if (variant.control === 'checkbox') {
+            return (
+                <Checkbox
+                    className="k8s-namespace-checkbox"
+                    checked={checked}
+                    indeterminate={indeterminate}
+                />
+            )
+        }
+        return checked || indeterminate ? <Icon name="general/checkmark" size={16} /> : undefined
+    }
 
     // Row order is frozen for as long as this popup stays open. The component
     // is unmounted on close (see KubernetesServicesPanel), so this snapshot is
@@ -265,7 +365,7 @@ function NamespacePopup({ rect, allSelected, selected, favorites, onToggle, onTo
                 mousedown on the handle), and it leaves `Popup`'s own reveal
                 transform alone. */}
             <div
-                className="k8s-namespace-popup"
+                className={`k8s-namespace-popup ${variant.indentRows ? 'k8s-namespace-popup-indented' : ''}`.trim()}
                 style={{ transform: `translate(${delta.dx}px, ${delta.dy}px)` }}
             >
                 {/* Drag handle: the top 7px of the popup. The header that used to
@@ -277,23 +377,42 @@ function NamespacePopup({ rect, allSelected, selected, favorites, onToggle, onTo
                     className="k8s-namespace-popup-drag-handle"
                     onMouseDown={onDragHandleMouseDown}
                 />
+                {/* Raised only after a blocked dismiss, and it sits above the
+                    popup rather than inside it so no row shifts when it
+                    appears. */}
+                {error && (
+                    <ValidationTooltip
+                        className="k8s-namespace-popup-validation"
+                        text="Specify at least one namespace"
+                    />
+                )}
                 <Popup visible style={{ position: 'static' }}>
-                    <PopupCell
-                        icon={allSelected ? <Icon name="general/checkmark" size={16} /> : undefined}
-                        iconGap={!allSelected}
-                        onClick={onToggleAll}
-                    >
-                        All Namespaces
-                    </PopupCell>
-                    <PopupCell type="separator" />
+                    {/* Master row. The indeterminate middle state belongs only to
+                        the variants whose rows mirror the master: there a partial
+                        selection really is "some of all". Where the master is
+                        radio-exclusive against the rows it has no middle state —
+                        either it is the selection or a subset is — so it simply
+                        reads unchecked. */}
+                    {(() => {
+                        const partial = variant.ticksFollowAll && !allSelected && selected.length > 0
+                        const control = renderControl(allSelected, partial)
+                        return (
+                            <PopupCell icon={control} iconGap={!control} onClick={onToggleAll}>
+                                All Namespaces
+                            </PopupCell>
+                        )
+                    })()}
+                    {variant.separatorUnderAll && <PopupCell type="separator" />}
                     {orderedNamespaces.map((namespace) => {
-                        const isSelected = !allSelected && selected.includes(namespace)
+                        const isSelected =
+                            (variant.ticksFollowAll && allSelected) || selected.includes(namespace)
                         const isFavorite = favorites.includes(namespace)
+                        const control = renderControl(isSelected)
                         return (
                             <PopupCell
                                 key={namespace}
-                                icon={isSelected ? <Icon name="general/checkmark" size={16} /> : undefined}
-                                iconGap={!isSelected}
+                                icon={control}
+                                iconGap={!control}
                                 onClick={() => onToggle(namespace)}
                                 shortcut={
                                     <span
@@ -330,7 +449,7 @@ function NamespacePopup({ rect, allSelected, selected, favorites, onToggle, onTo
     )
 }
 
-function KubernetesServicesPanel({ focused, onFocus, onActionClick, layoutMode, className }) {
+function KubernetesServicesPanel({ variant, focused, onFocus, onActionClick, layoutMode, className }) {
     const [selectedPodId, setSelectedPodId] = useState(null)
     const [nodeContextMenu, setNodeContextMenu] = useState(null)
     const [namespacePopupRect, setNamespacePopupRect] = useState(null)
@@ -351,39 +470,103 @@ function KubernetesServicesPanel({ focused, onFocus, onActionClick, layoutMode, 
     // being closed and reopened — which is what makes the reorder-on-reopen
     // behaviour observable at all.
     const [favoriteNamespaces, setFavoriteNamespaces] = useState([])
+    // Raised when the user tries to leave the popup with nothing selected. Only
+    // ever set by a blocked dismiss, never by opening the popup.
+    const [namespaceErrorRaised, setNamespaceErrorRaised] = useState(false)
 
     const visibleNamespaces = allNamespacesSelected ? ALL_NAMESPACE_IDS : selectedNamespaces
     const visiblePods = sortPods(PODS.filter((p) => visibleNamespaces.includes(p.namespace)))
     const selectedIndex = visiblePods.findIndex((p) => p.id === selectedPodId)
 
+    const namespaceValue = namespaceSummary(allNamespacesSelected, selectedNamespaces)
+
     function selectPod(podId) {
         setSelectedPodId(podId)
     }
 
+    // An empty working set is a legal transient state inside the popup, but not
+    // one the user can leave — "no namespaces" would silently empty the tree and
+    // the table. So dismissing is blocked and reported instead.
+    const namespaceSelectionEmpty = !allNamespacesSelected && selectedNamespaces.length === 0
+
     function openNamespacePopup(event) {
         setNodeContextMenu(null)
+        setNamespaceErrorRaised(false)
         setNamespacePopupRect({ x: event.clientX, y: event.clientY })
     }
 
-    // Selecting any individual namespace always drops out of "All
-    // Namespaces" mode first (even if it's already off) — the two are
-    // mutually exclusive, not a shared checkbox set.
-    function toggleNamespace(namespace) {
-        setAllNamespacesSelected(false)
-        setSelectedNamespaces((current) =>
-            current.includes(namespace)
-                ? current.filter((ns) => ns !== namespace)
-                : [...current, namespace]
-        )
+    function dismissNamespacePopup() {
+        if (variant.blockEmptyDismiss && namespaceSelectionEmpty) {
+            setNamespaceErrorRaised(true)
+            return
+        }
+        setNamespaceErrorRaised(false)
+        setNamespacePopupRect(null)
     }
 
-    // Radio-button semantics: clicking "All Namespaces" while it's already
-    // selected is a no-op (a selected radio can't be unchecked by clicking
-    // it again). Clicking it while an individual subset is selected clears
-    // that subset and switches to "All Namespaces".
+    // The context menus anchor the popup at the pointer; the toolbar button
+    // anchors it to itself, so the popup drops directly beneath the button
+    // instead of wherever the click happened to land inside it.
+    //
+    // Horizontally it lines up with the button's *value* — the part after the
+    // "Namespaces:" label — not with the button's box or its full text. So the
+    // anchor is the value span's own rect, which also means the popup shifts
+    // with the label's width instead of assuming a fixed offset. Vertically it
+    // stays on the button's box, so the popup clears the whole control rather
+    // than starting inside it.
+    function openNamespacePopupFromToolbar(event) {
+        const button = event.currentTarget
+        const buttonRect = button.getBoundingClientRect()
+        const valueRect = (button.querySelector('.k8s-toolbar-button-value') ?? button).getBoundingClientRect()
+        setNamespaceErrorRaised(false)
+        setNamespacePopupRect({
+            top: buttonRect.top,
+            bottom: buttonRect.bottom,
+            left: valueRect.left,
+            right: valueRect.right,
+        })
+    }
+
+    function toggleNamespace(namespace) {
+        // Variants whose rows do not mirror the master: the two are mutually
+        // exclusive, so picking a row drops out of "All Namespaces" and starts a
+        // fresh working set.
+        if (!variant.ticksFollowAll) {
+            setAllNamespacesSelected(false)
+            setSelectedNamespaces((current) =>
+                current.includes(namespace)
+                    ? current.filter((ns) => ns !== namespace)
+                    : [...current, namespace]
+            )
+            return
+        }
+
+        // Variants whose rows do mirror the master: every row shows a tick while
+        // "All Namespaces" is on, yet `selectedNamespaces` is empty, so the full
+        // set has to be materialised before toggling. Without that, unticking one
+        // row would silently drop all the others.
+        const base = allNamespacesSelected ? ALL_NAMESPACE_IDS : selectedNamespaces
+        const next = base.includes(namespace)
+            ? base.filter((ns) => ns !== namespace)
+            : [...base, namespace]
+
+        // And the reverse: ticking the last missing row means the same thing as
+        // "All Namespaces", so collapse back to that flag rather than leaving the
+        // master, the toolbar button and the cluster node reading "9 namespaces"
+        // with every row ticked.
+        const coversEverything = next.length === ALL_NAMESPACE_IDS.length
+        setAllNamespacesSelected(coversEverything)
+        setSelectedNamespaces(coversEverything ? [] : next)
+    }
+
     function toggleAllNamespaces() {
-        if (allNamespacesSelected) return
-        setAllNamespacesSelected(true)
+        // Radio semantics: a second click on an already-selected master does
+        // nothing, the way a selected radio cannot be unchecked by clicking it.
+        if (variant.allIsRadio && allNamespacesSelected) return
+        // Otherwise it is a plain toggle, and turning it off clears the working
+        // set — landing on the empty state `dismissNamespacePopup` refuses to
+        // leave in the variant that guards it.
+        setAllNamespacesSelected(!allNamespacesSelected)
         setSelectedNamespaces([])
     }
 
@@ -461,14 +644,19 @@ function KubernetesServicesPanel({ focused, onFocus, onActionClick, layoutMode, 
                     )}
                     {namespacePopupRect && (
                         <NamespacePopup
+                            variant={variant}
                             rect={namespacePopupRect}
                             allSelected={allNamespacesSelected}
                             selected={selectedNamespaces}
                             favorites={favoriteNamespaces}
+                            // Conjunction, not just the flag: selecting anything
+                            // clears the message on its own, so the flag can
+                            // never go stale.
+                            error={variant.blockEmptyDismiss && namespaceErrorRaised && namespaceSelectionEmpty}
                             onToggle={toggleNamespace}
                             onToggleAll={toggleAllNamespaces}
                             onToggleFavorite={toggleFavoriteNamespace}
-                            onDismiss={() => setNamespacePopupRect(null)}
+                            onDismiss={dismissNamespacePopup}
                         />
                     )}
                 </div>
@@ -485,10 +673,17 @@ function KubernetesServicesPanel({ focused, onFocus, onActionClick, layoutMode, 
                         <ToolbarSeparator />
                         <ToolbarButton
                             showChevron
+                            onClick={openNamespacePopupFromToolbar}
                             text={
                                 <>
                                     <span className="k8s-toolbar-button-label">Namespaces:</span>
-                                    {' default'}
+                                    {' '}
+                                    {/* Own span so the popup can be anchored to
+                                        where the value starts — a bare text node
+                                        has no box to measure. The separating space
+                                        stays outside it, so its left edge is the
+                                        first glyph of the value. */}
+                                    <span className="k8s-toolbar-button-value">{namespaceValue}</span>
                                 </>
                             }
                         />
@@ -508,7 +703,10 @@ function KubernetesServicesPanel({ focused, onFocus, onActionClick, layoutMode, 
     )
 }
 
-export default function UX3801FlatListPrototype() {
+// `variant` selects which Namespaces-popup design to render — see
+// POPUP_VARIANTS. Everything else is identical across the three, which is what
+// makes switching between them a fair comparison.
+export default function UX3801FlatListPrototype({ variant = POPUP_VARIANTS[0] }) {
     return (
         <MainWindow
             height="100%"
@@ -518,6 +716,7 @@ export default function UX3801FlatListPrototype() {
             bottomPanelContent={(id, ctx) =>
                 id === 'services' ? (
                     <KubernetesServicesPanel
+                        variant={variant}
                         focused={ctx.focusedPanel === 'bottom'}
                         onFocus={() => ctx.setFocusedPanel('bottom')}
                         onActionClick={(action) => {
