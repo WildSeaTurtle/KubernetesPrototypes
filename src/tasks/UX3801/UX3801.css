@@ -56,6 +56,35 @@
     height: auto;
 }
 
+/* Kill the hover highlight on tree rows — it reads as a selection. The kit's
+   own styles.css ships `.tree-node:hover:not(.tree-node-selected)` globally
+   (TreeNode.css, detached from it, carried a copy that has been removed), and
+   the detached TreeNode reuses the same class names, so the kit's rule still
+   applies without this override. Scoped to this tree, and one class deeper
+   than the kit's selector so it wins. Real selection (.tree-node-selected)
+   is untouched. */
+.k8s-left-tree .tree-node:hover:not(.tree-node-selected) {
+    background: none;
+}
+
+/* Inactive selection. Only one of the two panes owns the active selection at
+   a time (`activePane` in v1-flat-list.jsx); the other keeps its selection but
+   greys it out, the way the IDE does for a pane that isn't focused. Both kit
+   defaults resolve to `--selection-bg-active`, so each is redirected to
+   `--selection-bg-inactive` here. The kit has no such state of its own outside
+   dialogs (`.dialog--inactive .tree-node-selected`), hence the local rules.
+   Text colour needs no override: `--tree-node-text-selected` is already
+   `--text-default`, the same as an unselected row. */
+.k8s-left.k8s-pane-inactive .tree-node-selected {
+    background: var(--selection-bg-inactive);
+}
+
+/* One class deeper than the kit's own `.table-row.selected .table-cell`, and
+   deeper than the `:nth-child(2n)` stripe rule, so it wins over both. */
+.k8s-right.k8s-pane-inactive .table-row.selected .table-cell {
+    background: var(--selection-bg-inactive);
+}
+
 .k8s-right {
     flex: 1;
     min-width: 0;

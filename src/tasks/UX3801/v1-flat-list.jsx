@@ -271,6 +271,12 @@ function KubernetesServicesPanel({ focused, onFocus, onActionClick, layoutMode, 
     // NamespacePopup's comment for the radio-vs-checkbox relationship.
     const [allNamespacesSelected, setAllNamespacesSelected] = useState(true)
     const [selectedNamespaces, setSelectedNamespaces] = useState([])
+    // Which of the two panes owns the active selection. The other pane keeps
+    // its selection but renders it with `--selection-bg-inactive`, the way the
+    // IDE greys out a selection in a pane that isn't the focused one. Both
+    // panes keep their own selection independently — moving between them only
+    // changes which one reads as active.
+    const [activePane, setActivePane] = useState('tree')
 
     const visibleNamespaces = allNamespacesSelected ? ALL_NAMESPACE_IDS : selectedNamespaces
     const visiblePods = sortPods(PODS.filter((p) => visibleNamespaces.includes(p.namespace)))
@@ -319,7 +325,7 @@ function KubernetesServicesPanel({ focused, onFocus, onActionClick, layoutMode, 
             className={`k8s-services-window ${className ?? ''}`.trim()}
         >
             <div className="k8s-master-detail">
-                <div className="k8s-left">
+                <div className={`k8s-left ${activePane === 'tree' ? '' : 'k8s-pane-inactive'}`.trim()}>
                     <div className="k8s-left-toolbar" role="toolbar">
                         <ToolbarIconButton icon="general/add" dropdown />
                         <ToolbarIconButton icon="general/show" dropdown tooltip="Show" />
@@ -331,9 +337,11 @@ function KubernetesServicesPanel({ focused, onFocus, onActionClick, layoutMode, 
                     <div className="k8s-left-tree">
                         <Tree
                             data={buildTreeData(allNamespacesSelected, selectedNamespaces)}
-                            onNodeSelect={(nodeId) => {
-                                if (nodeId.startsWith('pod-')) selectPod(nodeId.slice(4))
-                            }}
+                            // Selecting a node only hands the active selection to
+                            // the tree — it deliberately does not select the
+                            // matching table row. Table selection is driven by
+                            // clicking a row directly.
+                            onNodeSelect={() => setActivePane('tree')}
                             onNodeContextMenu={(nodeId, event) => {
                                 let type = null
                                 if (nodeId === 'cluster') type = 'cluster'
@@ -378,14 +386,17 @@ function KubernetesServicesPanel({ focused, onFocus, onActionClick, layoutMode, 
                     )}
                 </div>
 
-                <div className="k8s-right">
+                <div className={`k8s-right ${activePane === 'table' ? '' : 'k8s-pane-inactive'}`.trim()}>
                     <Table
                         columns={TABLE_COLUMNS}
                         data={visiblePods}
                         showToolbar
                         toolbarActions={[{ icon: STUB_ICON }]}
                         selectedRowIndex={selectedIndex >= 0 ? selectedIndex : null}
-                        onRowClick={(row) => selectPod(row.id)}
+                        onRowClick={(row) => {
+                            setActivePane('table')
+                            selectPod(row.id)
+                        }}
                     />
                 </div>
             </div>

@@ -17,11 +17,10 @@
     outline: none;
 }
 
-/* Hover State */
-.tree-node:hover:not(.tree-node-selected) {
-    background: var(--tree-node-bg-hover);
-    border-radius: 4px;
-}
+/* No hover state on purpose — a hover highlight on a tree row reads as a
+   selection. The kit's own styles.css declares the same rule globally, so
+   dropping it here is not enough on its own; it is also overridden in
+   UX3801.css. */
 
 /* Selected State */
 .tree-node-selected {
