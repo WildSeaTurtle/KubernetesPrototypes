@@ -5,7 +5,7 @@
 // failing pod. See Prototype Boundary.md for scope.
 // ui-contract-allow-file dynamic-icon-name -- every dynamic `icon={...}` reference in this file resolves to STUB_ICON ('misc/stub'), a fixed constant already verified against the icon registry.
 
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import {
     MainWindow,
     ToolWindow,
@@ -13,6 +13,7 @@ import {
     Icon,
     ToolbarIconButton,
     ToolbarSeparator,
+    ToolbarButton,
     PositionedPopup,
     Popup,
     PopupCell,
@@ -31,6 +32,24 @@ const STUB_ICON = 'misc/stub'
 // listed ahead of the prototype's own sample namespaces (NAMESPACES).
 const SYSTEM_NAMESPACES = ['default', 'kube-public', 'kube-node-lease', 'kube-system']
 const ALL_NAMESPACE_IDS = [...SYSTEM_NAMESPACES, ...NAMESPACES]
+
+// Row order in the Namespace popup: selected favourites, then selected, then
+// favourites, then everything else. `sort` is stable in every engine this runs
+// on, so rows keep their ALL_NAMESPACE_IDS order within a group.
+function namespaceRank(namespace, selected, favorites) {
+    const isSelected = selected.includes(namespace)
+    const isFavorite = favorites.includes(namespace)
+    if (isSelected && isFavorite) return 0
+    if (isSelected) return 1
+    if (isFavorite) return 2
+    return 3
+}
+
+function orderNamespaces(selected, favorites) {
+    return [...ALL_NAMESPACE_IDS].sort(
+        (a, b) => namespaceRank(a, selected, favorites) - namespaceRank(b, selected, favorites),
+    )
+}
 
 // Fixed px widths, not percentages — at panel widths this tool window
 // realistically gets, seven columns can't all fit legibly. Explicit widths
@@ -124,17 +143,25 @@ function buildTreeData(allNamespacesSelected, selectedNamespaces) {
 // rather than the "Workloads" menu — every direct child of the cluster node except Workloads.
 const RESOURCE_CATEGORY_NODE_IDS = ['network', 'configuration', 'storage', 'crd', 'event']
 
-// Shared block reused by all three context menus below (cluster, Workloads,
-// other resource categories) — reference screenshots show it identically in
-// each, positioned differently relative to the menu-specific items around it.
-function CommonNamespaceMenuItems({ onDismiss, onOpenNamespace }) {
+// The two blocks below are shared by all three context menus (cluster,
+// Workloads, other resource categories) — reference screenshots show them
+// identically in each. They are kept separate rather than as one block
+// because the cluster menu interleaves "Connect Telepresence…" between them,
+// while the other two menus render them back to back.
+function ClusterActionsMenuItems({ onDismiss, onOpenNamespace }) {
     return (
         <>
-            <PopupCell icon={STUB_ICON} onClick={onOpenNamespace}>Namespace</PopupCell>
+            <PopupCell icon={STUB_ICON} onClick={onOpenNamespace}>Set Namespaces…</PopupCell>
             <PopupCell icon={STUB_ICON} onClick={onDismiss}>Open Kubeconfig File in Editor</PopupCell>
-            <PopupCell icon={STUB_ICON} submenu onClick={onDismiss}>Add Clusters</PopupCell>
-            <PopupCell icon={STUB_ICON} onClick={onDismiss}>Show Cluster Settings…</PopupCell>
-            <PopupCell type="separator" />
+            <PopupCell iconGap submenu onClick={onDismiss}>Add Clusters</PopupCell>
+            <PopupCell icon={STUB_ICON} onClick={onDismiss}>Cluster Settings…</PopupCell>
+        </>
+    )
+}
+
+function OpenInTabMenuItems({ onDismiss }) {
+    return (
+        <>
             <PopupCell iconGap onClick={onDismiss}>Open in New Tab</PopupCell>
             <PopupCell iconGap onClick={onDismiss}>Open Each in New Tab</PopupCell>
             <PopupCell iconGap onClick={onDismiss}>Open Each Type in New Tab</PopupCell>
@@ -143,21 +170,25 @@ function CommonNamespaceMenuItems({ onDismiss, onOpenNamespace }) {
     )
 }
 
-// Reference: cluster-node right-click menu screenshot supplied by the user.
-// Decorative only — every item just closes the menu, no icon carries its
-// real meaning (all use STUB_ICON per direct instruction).
+// Reference: cluster-node menu screenshot supplied by the user. Five groups:
+// connection state, cluster actions, Telepresence, tab placement, removal.
+// Decorative only — every item just closes the menu, no icon carries its real
+// meaning (all use STUB_ICON: of the icons in the reference, only the gear is
+// findable in the kit registry, so none are used rather than mixing one real
+// icon into an otherwise stubbed menu).
 function ClusterContextMenu({ rect, onDismiss, onOpenNamespace }) {
     return (
         <PositionedPopup triggerRect={rect} onDismiss={onDismiss}>
             <Popup visible style={{ position: 'static' }}>
                 <PopupCell icon={STUB_ICON} onClick={onDismiss}>Disconnect</PopupCell>
                 <PopupCell iconGap onClick={onDismiss}>Set Cluster as Current</PopupCell>
-                <PopupCell type="separator" />
                 <PopupCell icon={STUB_ICON} onClick={onDismiss}>Open Cluster Logs Tab</PopupCell>
                 <PopupCell type="separator" />
-                <CommonNamespaceMenuItems onDismiss={onDismiss} onOpenNamespace={onOpenNamespace} />
+                <ClusterActionsMenuItems onDismiss={onDismiss} onOpenNamespace={onOpenNamespace} />
                 <PopupCell type="separator" />
-                <PopupCell icon={STUB_ICON} onClick={onDismiss}>Connect Telepresence</PopupCell>
+                <PopupCell icon={STUB_ICON} onClick={onDismiss}>Connect Telepresence…</PopupCell>
+                <PopupCell type="separator" />
+                <OpenInTabMenuItems onDismiss={onDismiss} />
                 <PopupCell type="separator" />
                 <PopupCell
                     iconGap
@@ -178,7 +209,9 @@ function WorkloadsContextMenu({ rect, onDismiss, onOpenNamespace }) {
             <Popup visible style={{ position: 'static' }}>
                 <PopupCell icon={STUB_ICON} onClick={onDismiss}>Open Cluster Logs Tab</PopupCell>
                 <PopupCell type="separator" />
-                <CommonNamespaceMenuItems onDismiss={onDismiss} onOpenNamespace={onOpenNamespace} />
+                <ClusterActionsMenuItems onDismiss={onDismiss} onOpenNamespace={onOpenNamespace} />
+                <PopupCell type="separator" />
+                <OpenInTabMenuItems onDismiss={onDismiss} />
             </Popup>
         </PositionedPopup>
     )
@@ -190,7 +223,9 @@ function ResourceCategoryContextMenu({ rect, onDismiss, onOpenNamespace }) {
     return (
         <PositionedPopup triggerRect={rect} onDismiss={onDismiss}>
             <Popup visible style={{ position: 'static' }}>
-                <CommonNamespaceMenuItems onDismiss={onDismiss} onOpenNamespace={onOpenNamespace} />
+                <ClusterActionsMenuItems onDismiss={onDismiss} onOpenNamespace={onOpenNamespace} />
+                <PopupCell type="separator" />
+                <OpenInTabMenuItems onDismiss={onDismiss} />
             </Popup>
         </PositionedPopup>
     )
@@ -208,32 +243,41 @@ function ResourceCategoryContextMenu({ rect, onDismiss, onOpenNamespace }) {
 //     show every pod.
 //   - All Namespaces unchecked, zero or more individual rows checked
 //     (real checkbox toggling), tree/table show only those namespaces.
-// Draggable by its header, via the kit's `useDraggable` (same pattern as
-// the kit's own draggable `Dialog`).
-function NamespacePopup({ rect, allSelected, selected, onToggle, onToggleAll, onDismiss }) {
+// Each namespace row carries a favourite star in the kit's right-hand
+// `shortcut` slot: filled (`nodes/star`) when favourited and always visible,
+// outline (`nodes/starEmpty`) only while the row is hovered. Clicking the star
+// stops propagation so it toggles the favourite without also toggling the
+// row's selection.
+function NamespacePopup({ rect, allSelected, selected, favorites, onToggle, onToggleAll, onToggleFavorite, onDismiss }) {
     const { delta, onDragHandleMouseDown } = useDraggable()
-    const wrapperRef = useRef(null)
 
-    // The canonical `header` prop (rather than a manually-rendered header
-    // cell) keeps the exact kit padding/placement — the drag handle is
-    // wired onto that rendered node directly so only the header (not the
-    // whole popup body) starts a drag.
-    useEffect(() => {
-        const header = wrapperRef.current?.querySelector('.popup-cell-header')
-        if (!header) return undefined
-        header.style.cursor = 'grab'
-        header.addEventListener('mousedown', onDragHandleMouseDown)
-        return () => header.removeEventListener('mousedown', onDragHandleMouseDown)
-    }, [onDragHandleMouseDown])
+    // Row order is frozen for as long as this popup stays open. The component
+    // is unmounted on close (see KubernetesServicesPanel), so this snapshot is
+    // recomputed on each open — which is exactly the required behaviour:
+    // starring a namespace leaves it in place now and lifts it to the top only
+    // next time the popup is opened, never re-sorting under the pointer.
+    const [orderedNamespaces] = useState(() => orderNamespaces(selected, favorites))
 
     return (
         <PositionedPopup triggerRect={rect} onDismiss={onDismiss}>
-            <div ref={wrapperRef}>
-                <Popup
-                    visible
-                    header="Namespace"
-                    style={{ position: 'static', transform: `translate(${delta.dx}px, ${delta.dy}px)` }}
-                >
+            {/* The drag offset goes on this wrapper, not on `Popup` — that is the
+                pattern `useDraggable` documents (transform on the draggable root,
+                mousedown on the handle), and it leaves `Popup`'s own reveal
+                transform alone. */}
+            <div
+                className="k8s-namespace-popup"
+                style={{ transform: `translate(${delta.dx}px, ${delta.dy}px)` }}
+            >
+                {/* Drag handle: the top 7px of the popup. The header that used to
+                    serve as one is gone, so this strip replaces it. It sits above
+                    the popup body so the mousedown reaches it and not the first
+                    row, and above PositionedPopup's dismiss overlay so starting a
+                    drag doesn't close the popup. */}
+                <div
+                    className="k8s-namespace-popup-drag-handle"
+                    onMouseDown={onDragHandleMouseDown}
+                />
+                <Popup visible style={{ position: 'static' }}>
                     <PopupCell
                         icon={allSelected ? <Icon name="general/checkmark" size={16} /> : undefined}
                         iconGap={!allSelected}
@@ -241,19 +285,45 @@ function NamespacePopup({ rect, allSelected, selected, onToggle, onToggleAll, on
                     >
                         All Namespaces
                     </PopupCell>
-                    {ALL_NAMESPACE_IDS.map((namespace) => {
+                    <PopupCell type="separator" />
+                    {orderedNamespaces.map((namespace) => {
                         const isSelected = !allSelected && selected.includes(namespace)
+                        const isFavorite = favorites.includes(namespace)
                         return (
                             <PopupCell
                                 key={namespace}
                                 icon={isSelected ? <Icon name="general/checkmark" size={16} /> : undefined}
                                 iconGap={!isSelected}
                                 onClick={() => onToggle(namespace)}
+                                shortcut={
+                                    <span
+                                        className={`k8s-namespace-star ${isFavorite ? '' : 'k8s-namespace-star-empty'}`.trim()}
+                                        role="button"
+                                        aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                                        onClick={(event) => {
+                                            event.stopPropagation()
+                                            onToggleFavorite(namespace)
+                                        }}
+                                    >
+                                        {isFavorite ? (
+                                            <Icon name="nodes/star" size={16} />
+                                        ) : (
+                                            <Icon name="nodes/starEmpty" size={16} />
+                                        )}
+                                    </span>
+                                }
                             >
                                 {namespace}
                             </PopupCell>
                         )
                     })}
+                    <PopupCell type="separator" />
+                    {/* Decorative, like every other action in these menus — it
+                        just closes the popup. `type="footer"` gives the kit's own
+                        footer band and rounded bottom corners; the link colour
+                        and pointer cursor are set in UX3801.css, since PopupCell
+                        does not forward `className`. */}
+                    <PopupCell type="footer" onClick={onDismiss}>Create Namespace…</PopupCell>
                 </Popup>
             </div>
         </PositionedPopup>
@@ -277,6 +347,10 @@ function KubernetesServicesPanel({ focused, onFocus, onActionClick, layoutMode, 
     // panes keep their own selection independently — moving between them only
     // changes which one reads as active.
     const [activePane, setActivePane] = useState('tree')
+    // Favourites live here, not in NamespacePopup, so they survive the popup
+    // being closed and reopened — which is what makes the reorder-on-reopen
+    // behaviour observable at all.
+    const [favoriteNamespaces, setFavoriteNamespaces] = useState([])
 
     const visibleNamespaces = allNamespacesSelected ? ALL_NAMESPACE_IDS : selectedNamespaces
     const visiblePods = sortPods(PODS.filter((p) => visibleNamespaces.includes(p.namespace)))
@@ -313,6 +387,16 @@ function KubernetesServicesPanel({ focused, onFocus, onActionClick, layoutMode, 
         setSelectedNamespaces([])
     }
 
+    // Favouriting is independent of selection — it only affects row order, and
+    // only from the next time the popup opens.
+    function toggleFavoriteNamespace(namespace) {
+        setFavoriteNamespaces((current) =>
+            current.includes(namespace)
+                ? current.filter((ns) => ns !== namespace)
+                : [...current, namespace]
+        )
+    }
+
     return (
         <ToolWindow
             title="Services"
@@ -340,7 +424,8 @@ function KubernetesServicesPanel({ focused, onFocus, onActionClick, layoutMode, 
                             // Selecting a node only hands the active selection to
                             // the tree — it deliberately does not select the
                             // matching table row. Table selection is driven by
-                            // clicking a row directly.
+                            // clicking a row directly. Context menus open on
+                            // right-click only, via onNodeContextMenu below.
                             onNodeSelect={() => setActivePane('tree')}
                             onNodeContextMenu={(nodeId, event) => {
                                 let type = null
@@ -379,19 +464,38 @@ function KubernetesServicesPanel({ focused, onFocus, onActionClick, layoutMode, 
                             rect={namespacePopupRect}
                             allSelected={allNamespacesSelected}
                             selected={selectedNamespaces}
+                            favorites={favoriteNamespaces}
                             onToggle={toggleNamespace}
                             onToggleAll={toggleAllNamespaces}
+                            onToggleFavorite={toggleFavoriteNamespace}
                             onDismiss={() => setNamespacePopupRect(null)}
                         />
                     )}
                 </div>
 
                 <div className={`k8s-right ${activePane === 'table' ? '' : 'k8s-pane-inactive'}`.trim()}>
+                    {/* Hand-rolled instead of Table's own `showToolbar`: that API
+                        takes a flat `toolbarActions` array and can only render
+                        icon buttons, so it has no way to express a separator or a
+                        ToolbarButton. Styled to match `.table-toolbar` exactly, and
+                        placed inside `.k8s-right` where Table's toolbar already sat,
+                        so the pane still scrolls as one unit. */}
+                    <div className="k8s-right-toolbar" role="toolbar">
+                        <ToolbarIconButton icon={STUB_ICON} />
+                        <ToolbarSeparator />
+                        <ToolbarButton
+                            showChevron
+                            text={
+                                <>
+                                    <span className="k8s-toolbar-button-label">Namespaces:</span>
+                                    {' default'}
+                                </>
+                            }
+                        />
+                    </div>
                     <Table
                         columns={TABLE_COLUMNS}
                         data={visiblePods}
-                        showToolbar
-                        toolbarActions={[{ icon: STUB_ICON }]}
                         selectedRowIndex={selectedIndex >= 0 ? selectedIndex : null}
                         onRowClick={(row) => {
                             setActivePane('table')

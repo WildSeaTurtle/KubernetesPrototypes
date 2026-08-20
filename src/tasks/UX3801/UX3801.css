@@ -102,6 +102,27 @@
     --table-border: var(--tool-window-border);
 }
 
+/* Toolbar above the table. Table's own `showToolbar` can't render a separator
+   or a ToolbarButton (see v1-flat-list.jsx), so this replaces it — same metrics
+   as the kit's `.table-toolbar` so the row reads identically. */
+.k8s-right-toolbar {
+    display: flex;
+    align-items: center;
+    height: 26px;
+    padding: 4px 7px 4px 4px;
+    border-bottom: 1px solid var(--table-border);
+    box-sizing: content-box;
+    flex-shrink: 0;
+}
+
+/* `ToolbarButton` has a single `text` slot, rendered as
+   `.toolbar-button-text { color: var(--text-default) }`. The label half is
+   passed as a nested span so it can drop to secondary; two classes deep, so it
+   wins over the kit's rule regardless of stylesheet order. */
+.toolbar-button-text .k8s-toolbar-button-label {
+    color: var(--text-secondary);
+}
+
 .k8s-right .table-container {
     /* The table hugs `.k8s-right`'s own edges instead of reading as an
        inset card — no left/right/top border. Bottom border stays. */
@@ -122,6 +143,62 @@
     /* Row separators — the kit's Table.css only borders header cells on
        the bottom edge, leaving body rows undivided. */
     border-bottom: 1px solid var(--table-border);
+}
+
+/* Favourite star in the Namespaces popup, rendered into the kit's right-hand
+   `.popup-cell-shortcut` slot. A filled star (an actual favourite) stays
+   visible so the list reads at a glance; the outline star is only revealed
+   while its own row is hovered, so nine idle outlines don't compete with the
+   checkmarks. `visibility` rather than `display` keeps the row height and the
+   star's hit area stable, so the icon doesn't shift as it appears. */
+/* Drag handle — the top 7px of the Namespaces popup. Absolute, so it overlays
+   the popup's own top edge instead of taking layout space and pushing the first
+   row down. z-index puts it above the popup body so the mousedown lands here
+   rather than on the first row; it is inside PositionedPopup's content layer
+   (z-index 10000), which already sits above that component's dismiss overlay
+   (9999), so starting a drag cannot close the popup. */
+.k8s-namespace-popup {
+    position: relative;
+}
+
+.k8s-namespace-popup-drag-handle {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 7px;
+    z-index: 1;
+    /* Cursor stays the default arrow — the strip is invisible, so a grab hand
+       would be the only hint that anything is there, and that reads as a
+       control the design doesn't have. */
+    cursor: default;
+}
+
+/* "Create Namespace…" footer. The kit's `.popup-cell-footer` renders its text
+   in `--text-secondary` and sets `cursor: default`, but here the row is a
+   link. PopupCell does not forward `className`, so these are scoped through
+   the popup wrapper instead — three classes deep, which also clears the kit's
+   own two-class `.popup-cell-footer .popup-cell-text` rule. */
+.k8s-namespace-popup .popup-cell-footer {
+    cursor: pointer;
+}
+
+.k8s-namespace-popup .popup-cell-footer .popup-cell-text {
+    color: var(--text-link);
+}
+
+.k8s-namespace-star {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.k8s-namespace-star-empty {
+    visibility: hidden;
+}
+
+.popup-cell:hover .k8s-namespace-star-empty {
+    visibility: visible;
 }
 
 .k8s-status-cell {
