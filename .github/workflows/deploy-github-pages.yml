@@ -1,0 +1,68 @@
+# Deploy the built site to GitHub Pages (project site: /KubernetesPrototypes/).
+#
+# Two one-time manual steps this file cannot do for you:
+#   1. Repo settings → Pages → Build and deployment: Source = GitHub Actions.
+#      Until that is switched, Pages keeps serving the repository source from the
+#      branch — which is the dev index.html referencing /src/main.tsx, and that is
+#      why the published page was blank.
+#   2. Repo settings → Secrets and variables → Actions: add GH_PAT, a token with
+#      read:packages. @jetbrains/int-ui-kit comes from GitHub Packages (see
+#      .npmrc), and the runner has no credentials for it — the repo's own
+#      GITHUB_TOKEN cannot read packages published under another org.
+#
+# The asset prefix lives in vite.config.ts as `base: '/KubernetesPrototypes/'`,
+# matching https://<user>.github.io/KubernetesPrototypes/. If the published URL
+# ever turns out to be a root instead (Pages sometimes serves Actions
+# deployments at a *.pages.github.io root), change that one line to '/'.
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # registry-url + scope make setup-node write an npm user config carrying
+      # the token, which composes with the repo's own .npmrc scope mapping.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@jetbrains'
+
+      - name: Install and build
+        run: |
+          npm ci
+          npm run build
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GH_PAT }}
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
