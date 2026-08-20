@@ -1,0 +1,14 @@
+/* The UX-3801 prototype copied from int-ui-prototypes renders MainWindow with
+   height="100%". Over there its full-height stage came from PrototypeShell;
+   there is no shell here, and the kit's own styles.css sets no height on
+   html/body/#root — so without this the root collapses to 0 and the IDE
+   window renders invisible. */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+}

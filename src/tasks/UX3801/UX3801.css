@@ -1,0 +1,102 @@
+/* UX-3801 — Multi-Namespace Resource View prototypes */
+
+/* The kit's own .main-window caps out at 1920x1080 (MainWindow.css) so the
+   IDE stops growing and leaves dead space on larger monitors/windows. This
+   prototype's IDE stage should fill all available space instead, so this
+   instance opts out of that cap via its own className. */
+.main-window.k8s-fill-mainwindow {
+    max-width: none;
+    max-height: none;
+}
+
+.k8s-master-detail {
+    display: flex;
+    height: 100%;
+    min-height: 0;
+    /* Cancels the kit's `.tool-window-content` top padding (4px) so both
+       toolbars sit flush with the tool window's true top edge instead of
+       floating with a gap above them. Only the top offset is cancelled —
+       the left/right padding stays, so horizontal spacing is unaffected. */
+    margin-top: -4px;
+}
+
+.k8s-left {
+    width: 500px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-right: 1px solid var(--tool-window-border);
+}
+
+.k8s-left-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 4px;
+    flex-shrink: 0;
+}
+
+.k8s-left-tree {
+    flex: 1;
+    min-height: 0;
+    margin-top: 6px;
+    overflow: auto;
+}
+
+/* The kit's own `.tool-window-content .tree { height: 100% }` rule (see
+   ToolWindow.css — meant for a ToolWindow whose only content is a single
+   tree) pins our tree's height to its immediate parent and, combined with
+   `.tree`'s own `overflow: hidden` (Tree.css), silently clips any node past
+   that height instead of leaving anything for `.k8s-left-tree`'s own
+   `overflow: auto` to scroll. Overriding back to content-based height here
+   (higher specificity than the kit's 2-class selector) restores real
+   scrolling on the left pane. */
+.k8s-left-tree .tree {
+    height: auto;
+}
+
+.k8s-right {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    /* The right pane scrolls as one unit — not the table internally — so
+       it scrolls independently of the tree on the left, which has its own
+       separate scroll region above. */
+    overflow: auto;
+    /* Match the table's border to the surrounding tool window chrome
+       instead of the kit's default table-border token. `Table.css` reads
+       every border via `var(--table-border)`, so redeclaring the custom
+       property here cascades into the table without detaching it. */
+    --table-border: var(--tool-window-border);
+}
+
+.k8s-right .table-container {
+    /* The table hugs `.k8s-right`'s own edges instead of reading as an
+       inset card — no left/right/top border. Bottom border stays. */
+    border-left: none;
+    border-right: none;
+    border-top: none;
+}
+
+.k8s-right .table-header-cell,
+.k8s-right .table-cell {
+    /* 22px total, borders included — cells are already box-sizing:
+       border-box (Table.css), so this height doesn't need adjusting for
+       the border-right/border-bottom width. */
+    height: 22px;
+}
+
+.k8s-right .table-cell {
+    /* Row separators — the kit's Table.css only borders header cells on
+       the bottom edge, leaving body rows undivided. */
+    border-bottom: 1px solid var(--table-border);
+}
+
+.k8s-status-cell {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}

@@ -1,42 +1,20 @@
-import {
-  ThemeProvider,
-  MainWindow,
-  defaultBottomPanelContent,
-  DEFAULT_SERVICES_TREE_DATA,
-  DEFAULT_SERVICES_LEFT_TOOLBAR,
-  DEFAULT_SERVICES_RIGHT_TOOLBAR,
-  type PanelContext,
-} from '@jetbrains/int-ui-kit';
-import { ServicesToolWindow } from './components/ServicesToolWindow';
-import { KUBERNETES_TREE_NODE } from './data/kubernetesTree';
+import { ThemeProvider } from '@jetbrains/int-ui-kit';
+import UX3801FlatListPrototype from './tasks/UX3801/v1-flat-list';
 
-const servicesTree = [KUBERNETES_TREE_NODE, ...DEFAULT_SERVICES_TREE_DATA];
-
-function bottomPanelContent(stripeId: string, context: PanelContext) {
-  if (stripeId !== 'services') return defaultBottomPanelContent(stripeId, context);
-
-  return (
-    <ServicesToolWindow
-      treeData={servicesTree}
-      defaultSelectedId="kubernetes"
-      leftToolbar={DEFAULT_SERVICES_LEFT_TOOLBAR}
-      rightToolbar={DEFAULT_SERVICES_RIGHT_TOOLBAR}
-      layoutMode={context.toolWindowLayoutMode}
-      focused={context.focusedPanel === 'bottom'}
-    />
-  );
-}
-
+/**
+ * UX-3801 — Kubernetes Services tool window, copied from int-ui-prototypes
+ * (`src/tasks/UX3801/`). The prototype brings its own `MainWindow`, so this
+ * app only supplies the theme.
+ *
+ * The files under `src/tasks/UX3801/` are verbatim copies, kept as `.jsx` so
+ * they can be re-synced from int-ui-prototypes without a rewrite. The earlier
+ * spike here (`components/ServicesToolWindow.tsx`, `data/kubernetesTree.ts`)
+ * is left in place but is no longer rendered.
+ */
 export default function App() {
   return (
     <ThemeProvider>
-      <MainWindow
-        projectName="kubernetes-prototypes"
-        projectIcon="KP"
-        defaultOpenToolWindows={['project', 'services']}
-        bottomPanelContent={bottomPanelContent}
-        initialBottomPanelHeight={500}
-      />
+      <UX3801FlatListPrototype />
     </ThemeProvider>
   );
 }
