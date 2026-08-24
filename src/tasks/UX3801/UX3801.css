@@ -1,12 +1,14 @@
 /* UX-3801 — Multi-Namespace Resource View prototypes */
 
-/* The kit's own .main-window caps out at 1920x1080 (MainWindow.css) so the
-   IDE stops growing and leaves dead space on larger monitors/windows. This
-   prototype's IDE stage should fill all available space instead, so this
-   instance opts out of that cap via its own className. */
-.main-window.k8s-fill-mainwindow {
-    max-width: none;
-    max-height: none;
+/* The IDE stage fills whatever the window gives it, up to a 2560x1440 screen —
+   past that the mock would stop resembling any real display. The cap is raised
+   from the kit's own 1920x1080 (.main-window) deliberately, so the stage still
+   fills a 2560-wide monitor instead of leaving a border on one; it fills
+   anything smaller because the kit sets `width: 100%` and the `height` prop asks
+   for 100%. `.prototype-content` centres the leftover space above the cap. */
+.main-window.k8s-ide-stage {
+    max-width: 2560px;
+    max-height: 1440px;
 }
 
 .k8s-master-detail {

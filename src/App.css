@@ -16,9 +16,16 @@
   overflow: hidden;
 }
 
+/* Holds the IDE stage, which caps at 2560x1440 (see UX3801.css). Once it stops
+   growing the leftover space has to go somewhere, so it is split evenly around
+   the stage — an IDE floating in the middle of the shell's backdrop reads as a
+   screenshot, where one pinned to the top-left corner just looks unfinished. */
 .prototype-content {
   position: absolute;
   inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: auto;
   height: 100%;
 }

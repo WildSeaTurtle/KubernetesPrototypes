@@ -8,13 +8,13 @@ import './App.css';
  * navigate the same way: a fixed left panel listing the prototypes on top and
  * their screens below, with the content shifted over by the panel's width.
  *
- * As there, the panel toggles with a shortcut (here Cmd/Ctrl+Shift+S) and the
- * active screen is remembered per prototype in localStorage. Unlike there it
- * starts open, so it is visible without having to know the shortcut, and the URL
- * hash carries the screen as well as the prototype — `#multi-namespace/v2` — so
- * a link opens on the exact variant it was copied from. The hash wins over
- * localStorage on load; localStorage only supplies the screen for a hash that
- * names none.
+ * As there, the panel starts hidden and toggles with a shortcut (here
+ * Cmd/Ctrl+Shift+S), and the active screen is remembered per prototype in
+ * localStorage. Starting hidden is what makes a shared link show the prototype
+ * alone rather than the authoring shell around it — which works because the URL
+ * hash carries the screen as well as the prototype (`#multi-namespace/v2`), so
+ * the variant is addressable without the panel. The hash wins over localStorage
+ * on load; localStorage only supplies the screen for a hash that names none.
  *
  * The Kubernetes prototype's "screens" are the Namespaces-popup variants
  * (see POPUP_VARIANTS). The earlier spike in this repo
@@ -87,7 +87,7 @@ function getInitialScreenId(prototypeId: string): string {
 
 export default function App() {
   const [activePrototypeId, setActivePrototypeId] = useState(() => parseHash().prototypeId);
-  const [isPanelVisible, setIsPanelVisible] = useState(true);
+  const [isPanelVisible, setIsPanelVisible] = useState(false);
   const [screenIds, setScreenIds] = useState<Record<string, string>>(() => {
     const result: Record<string, string> = {};
     for (const prototype of PROTOTYPES) {

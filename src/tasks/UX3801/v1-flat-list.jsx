@@ -753,7 +753,7 @@ export default function UX3801FlatListPrototype({ variant = POPUP_VARIANTS[0] })
     return (
         <MainWindow
             height="100%"
-            className="k8s-fill-mainwindow"
+            className="k8s-ide-stage"
             defaultOpenToolWindows={['services']}
             initialBottomPanelHeight={500}
             bottomPanelContent={(id, ctx) =>
