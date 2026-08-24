@@ -160,7 +160,7 @@
    row, so a row's checkbox starts exactly where the word "All" starts. The
    general sibling combinator picks the `.popup-cell-line` rows that follow
    another one — that is, everything after the master row — while the separator
-   and footer keep their own classes and are left alone. Popup renders all
+   keeps its own class and is left alone. Popup renders all
    children as siblings inside `.popup-options`, which is what makes this work.
    PopupCell does not forward `className`, so there is no per-row hook. */
 .k8s-namespace-popup-indented .popup-cell-line ~ .popup-cell-line {
@@ -213,19 +213,6 @@
        would be the only hint that anything is there, and that reads as a
        control the design doesn't have. */
     cursor: default;
-}
-
-/* "Create Namespace…" footer. The kit's `.popup-cell-footer` renders its text
-   in `--text-secondary` and sets `cursor: default`, but here the row is a
-   link. PopupCell does not forward `className`, so these are scoped through
-   the popup wrapper instead — three classes deep, which also clears the kit's
-   own two-class `.popup-cell-footer .popup-cell-text` rule. */
-.k8s-namespace-popup .popup-cell-footer {
-    cursor: pointer;
-}
-
-.k8s-namespace-popup .popup-cell-footer .popup-cell-text {
-    color: var(--text-link);
 }
 
 .k8s-namespace-star {

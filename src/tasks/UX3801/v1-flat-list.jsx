@@ -467,13 +467,6 @@ function NamespacePopup({ variant, rect, allSelected, selected, favorites, error
                             </PopupCell>
                         )
                     })}
-                    <PopupCell type="separator" />
-                    {/* Decorative, like every other action in these menus — it
-                        just closes the popup. `type="footer"` gives the kit's own
-                        footer band and rounded bottom corners; the link colour
-                        and pointer cursor are set in UX3801.css, since PopupCell
-                        does not forward `className`. */}
-                    <PopupCell type="footer" onClick={onDismiss}>Create Namespace…</PopupCell>
                 </Popup>
             </div>
         </PositionedPopup>
