@@ -13,7 +13,7 @@ import './App.css';
  * localStorage. Unlike there it starts open, so it is visible without having to
  * know the shortcut.
  *
- * The Kubernetes prototype's "screens" are the three Namespaces-popup variants
+ * The Kubernetes prototype's "screens" are the Namespaces-popup variants
  * (see POPUP_VARIANTS). The earlier spike in this repo
  * (`components/ServicesToolWindow.tsx`, `data/kubernetesTree.ts`) is left in
  * place but is no longer rendered.

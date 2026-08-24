@@ -35,6 +35,11 @@ const STUB_ICON = 'misc/stub'
 const SYSTEM_NAMESPACES = ['default', 'kube-public', 'kube-node-lease', 'kube-system']
 const ALL_NAMESPACE_IDS = [...SYSTEM_NAMESPACES, ...NAMESPACES]
 
+// The namespace an empty working set falls back to on close — kubectl's own
+// default context, so "nothing chosen" resolves to the same scope the CLI would
+// use rather than to an empty tree and table.
+const DEFAULT_NAMESPACE = 'default'
+
 // Row order in the Namespace popup: selected favourites, then selected, then
 // favourites, then everything else. `sort` is stable in every engine this runs
 // on, so rows keep their ALL_NAMESPACE_IDS order within a group.
@@ -51,9 +56,12 @@ function namespaceRank(namespace, selected, favorites) {
 // Namespaces button and the cluster tree node. Shared so the threshold lives in
 // one place and the two readouts cannot disagree.
 //
-// Spelling out the set stops paying off past a few names (the toolbar button has
-// `nowrap` text, so a long list widens the toolbar past the pane), hence the
-// collapse to a count. "All Namespaces" and an empty deliberate selection are
+// Spelling out the whole set stops paying off past a few names (the toolbar
+// button has `nowrap` text, so a long list widens the toolbar past the pane), so
+// past the limit it names the first few and counts the rest — the names carry
+// what the count alone couldn't, that this is a hand-picked set and which
+// namespaces are in it. Order is selection order, so the first names shown are
+// the first ones picked. "All Namespaces" and an empty deliberate selection are
 // both real, reachable states (see NamespacePopup's radio-vs-checkbox note) and
 // have to be named rather than rendered blank — though the tree node opts out of
 // the empty case and drops its suffix instead.
@@ -62,12 +70,13 @@ const NAMESPACE_LIST_LIMIT = 3
 function namespaceSummary(allSelected, selected) {
     if (allSelected) return 'All Namespaces'
     if (selected.length === 0) return 'None'
-    if (selected.length > NAMESPACE_LIST_LIMIT) return `${selected.length} namespaces`
-    return selected.join(', ')
+    const listed = selected.slice(0, NAMESPACE_LIST_LIMIT).join(', ')
+    if (selected.length <= NAMESPACE_LIST_LIMIT) return listed
+    return `${listed}, and ${selected.length - NAMESPACE_LIST_LIMIT} more`
 }
 
-// The three Namespaces-popup designs under comparison, described as data rather
-// than as three near-identical components: everything around the popup (tree,
+// The Namespaces-popup designs under comparison, described as data rather
+// than as a set of near-identical components: everything around the popup (tree,
 // table, toolbar, context menus, favourites, drag handle) is the same, and
 // stating the differences in one table is what makes them comparable at all.
 //
@@ -85,6 +94,10 @@ function namespaceSummary(allSelected, selected) {
 //                      as a selected radio cannot be unchecked by clicking it
 //   blockEmptyDismiss  refuse to close on an empty set, showing the validation
 //                      message instead of silently applying "no namespaces"
+//   defaultOnEmpty     the other answer to the same problem: closing on an empty
+//                      set is allowed, and selects `default` on the way out. The
+//                      two are alternatives, not layers — a variant that blocks
+//                      the dismiss never reaches the fallback.
 export const POPUP_VARIANTS = [
     {
         id: 'v1',
@@ -95,6 +108,7 @@ export const POPUP_VARIANTS = [
         ticksFollowAll: false,
         allIsRadio: true,
         blockEmptyDismiss: false,
+        defaultOnEmpty: true,
     },
     {
         id: 'v2',
@@ -105,6 +119,7 @@ export const POPUP_VARIANTS = [
         ticksFollowAll: true,
         allIsRadio: false,
         blockEmptyDismiss: true,
+        defaultOnEmpty: false,
     },
     {
         id: 'v3',
@@ -115,6 +130,22 @@ export const POPUP_VARIANTS = [
         ticksFollowAll: false,
         allIsRadio: true,
         blockEmptyDismiss: false,
+        defaultOnEmpty: true,
+    },
+    {
+        // Variant 2's layout and selection model with Variant 1/3's answer to the
+        // empty set: the pair differs in nothing but those two flags, so putting
+        // them side by side isolates "block the exit" against "fall back to
+        // `default`" without the indent/mirroring differences confounding it.
+        id: 'v4',
+        label: 'Variant 4 — checkboxes, indented, default fallback',
+        control: 'checkbox',
+        separatorUnderAll: false,
+        indentRows: true,
+        ticksFollowAll: true,
+        allIsRadio: false,
+        blockEmptyDismiss: false,
+        defaultOnEmpty: true,
     },
 ]
 
@@ -478,16 +509,27 @@ function KubernetesServicesPanel({ variant, focused, onFocus, onActionClick, lay
     const visiblePods = sortPods(PODS.filter((p) => visibleNamespaces.includes(p.namespace)))
     const selectedIndex = visiblePods.findIndex((p) => p.id === selectedPodId)
 
-    const namespaceValue = namespaceSummary(allNamespacesSelected, selectedNamespaces)
-
     function selectPod(podId) {
         setSelectedPodId(podId)
     }
 
     // An empty working set is a legal transient state inside the popup, but not
-    // one the user can leave — "no namespaces" would silently empty the tree and
-    // the table. So dismissing is blocked and reported instead.
+    // one the user can leave with — "no namespaces" would silently empty the tree
+    // and the table. The variants answer that in one of two ways, per their
+    // `blockEmptyDismiss` / `defaultOnEmpty` flags: refuse the dismiss and show
+    // the validation message, or let it close and resolve to `default`.
     const namespaceSelectionEmpty = !allNamespacesSelected && selectedNamespaces.length === 0
+
+    // While the popup is open, an empty set is mid-edit rather than an applied
+    // state, so the button's value reads blank — "Namespaces:" and its chevron,
+    // nothing between them. Naming it ("None") would announce a scope the user is
+    // in the middle of replacing, and both exits from the empty state overwrite it
+    // anyway. Closed-and-empty keeps `namespaceSummary`'s own wording: the guards
+    // above make it unreachable for every current variant, not impossible for a
+    // variant that sets neither flag.
+    const namespaceValue = namespacePopupRect && namespaceSelectionEmpty
+        ? ''
+        : namespaceSummary(allNamespacesSelected, selectedNamespaces)
 
     function openNamespacePopup(event) {
         setNodeContextMenu(null)
@@ -499,6 +541,14 @@ function KubernetesServicesPanel({ variant, focused, onFocus, onActionClick, lay
         if (variant.blockEmptyDismiss && namespaceSelectionEmpty) {
             setNamespaceErrorRaised(true)
             return
+        }
+        // The permissive answer to the same empty set: close, but commit
+        // `default` rather than nothing. Applied on the way out, not while the
+        // popup is open, so unticking the last row still reads as unticked for as
+        // long as the user is looking at it — the fallback is what they get for
+        // leaving, not a row that re-ticks itself under the pointer.
+        if (variant.defaultOnEmpty && namespaceSelectionEmpty) {
+            setSelectedNamespaces([DEFAULT_NAMESPACE])
         }
         setNamespaceErrorRaised(false)
         setNamespacePopupRect(null)
@@ -704,8 +754,8 @@ function KubernetesServicesPanel({ variant, focused, onFocus, onActionClick, lay
 }
 
 // `variant` selects which Namespaces-popup design to render — see
-// POPUP_VARIANTS. Everything else is identical across the three, which is what
-// makes switching between them a fair comparison.
+// POPUP_VARIANTS. Everything else is identical across the variants, which is
+// what makes switching between them a fair comparison.
 export default function UX3801FlatListPrototype({ variant = POPUP_VARIANTS[0] }) {
     return (
         <MainWindow
